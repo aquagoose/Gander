@@ -1,4 +1,5 @@
-﻿using Gander;
+﻿using System.IO;
+using Gander;
 using Gander.Parser;
 
 IlToAsm asm = new IlToAsm();
@@ -81,4 +82,4 @@ const string code = @"
 :clend
 ";
 
-asm.Process(code);
+File.WriteAllBytes("/home/ollie/Documents/stuff.gnd", asm.Process(code));

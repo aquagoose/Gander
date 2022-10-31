@@ -12,6 +12,7 @@ public class ClassInfo
     public int EndPoint;
 
     public FnInfo[] Functions;
+    public VarInfo[] Variables;
 
     public ClassInfo()
     {
@@ -24,6 +25,7 @@ public class ClassInfo
         StartPoint = -1;
         EndPoint = -1;
         Functions = null;
+        Variables = null;
     }
 
     public override string ToString()

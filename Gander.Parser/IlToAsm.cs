@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Gander.Parser;
 
@@ -12,8 +13,9 @@ public class IlToAsm
 
     public byte[] Process(string code)
     {
-        Dictionary<string, ClassInfo> classes = new Dictionary<string, ClassInfo>();
+        List<ClassInfo> classes = new List<ClassInfo>();
         List<FnInfo> functions = new List<FnInfo>();
+        List<VarInfo> variables = new List<VarInfo>();
 
         ClassInfo currentClassInfo = new ClassInfo(); 
         bool inClass = false;
@@ -80,7 +82,9 @@ public class IlToAsm
                     inClass = false;
                     currentClassInfo.Functions = functions.ToArray();
                     functions.Clear();
-                    classes.Add(currentClassInfo.Name, currentClassInfo);
+                    currentClassInfo.Variables = variables.ToArray();
+                    variables.Clear();
+                    classes.Add(currentClassInfo);
                     break;
                 
                 case "fn":
@@ -198,6 +202,67 @@ public class IlToAsm
                 case "var":
                     if (!inClass)
                         throw Error("\"var\" is only valid in a class.", i);
+
+                    currentVarInfo = new VarInfo();
+
+                    for (int p = 1; p < splitLine.Length; p++)
+                    {
+                        switch (splitLine[p])
+                        {
+                            case "private":
+                                currentVarInfo.Private = true;
+                                break;
+                            case "instance":
+                                currentVarInfo.Instance = true;
+                                break;
+                            
+                            case "void" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.Void;
+                                break;
+                            case "i8" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.I8;
+                                break;
+                            case "i16" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.I16;
+                                break;
+                            case "i32" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.I32;
+                                break;
+                            case "i64" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.I64;
+                                break;
+                            case "u8" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.U8;
+                                break;
+                            case "u16" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.U16;
+                                break;
+                            case "u32" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.U32;
+                                break;
+                            case "u64" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.U64;
+                                break;
+                            case "f32" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.F32;
+                                break;
+                            case "f64" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.F64;
+                                break;
+                            case "str" when p == splitLine.Length - 2:
+                                currentVarInfo.Type = Types.String;
+                                break;
+                            
+                            default:
+                                if (p == splitLine.Length - 1)
+                                    currentVarInfo.Name = splitLine[p];
+                                else
+                                    throw Error("Unrecognized attribute \"" + splitLine[p] + "\".", i);
+                                break;
+                        }
+                    }
+                    
+                    variables.Add(currentVarInfo);
                     break;
                 
                 case "lbl":
@@ -214,7 +279,7 @@ public class IlToAsm
 
         List<Instruction> instructions = new List<Instruction>();
 
-        foreach ((_, ClassInfo cInfo) in classes)
+        foreach (ClassInfo cInfo in classes)
         {
             for (int f = 0; f < cInfo.Functions.Length; f++)
             {
@@ -443,9 +508,165 @@ public class IlToAsm
         
         Console.WriteLine("Instructions parsed with 0 errors.");
         
+        // Skip the compiler checks for now - it will just assume everything is perfect :)
+        /*Console.WriteLine("Performing checks...");
+        bool hasEntryPoint = false;
+        foreach ((_, ClassInfo ci) in classes)
+        {
+            
+        }*/
         
+        // Likewise, don't perform optimization right now.
+        // Console.WriteLine("Beginning optimizations...");
+        
+        Console.Write("Creating metadata... ");
 
-        return null;
+        List<string> strings = new List<string>();
+
+        foreach (ClassInfo ci in classes)
+        {
+            for (int f = 0; f < ci.Functions.Length; f++)
+            {
+                ref FnInfo info = ref ci.Functions[f];
+
+                for (int i = 0; i < info.Instructions.Length; i++)
+                {
+                    ref Instruction inst = ref info.Instructions[i];
+
+                    switch (inst.OpCode)
+                    {
+                        case OpCode.LD_Str:
+                            strings.Add((string) inst.Object);
+                            inst.Object = strings.Count - 1;
+                            break;
+                        case OpCode.Call:
+                        case OpCode.Call_I:
+                            string[] splitCall = ((string) inst.Object).Split("::");
+                            for (int c = 0; c < classes.Count; c++)
+                            {
+                                if (classes[c].Name != splitCall[0])
+                                    continue;
+
+                                string funcName = splitCall[1][..(splitCall[1].IndexOf('('))];
+                                for (int fn = 0; fn < classes[c].Functions.Length; fn++)
+                                {
+                                    if (classes[c].Functions[fn].Name != funcName)
+                                        continue;
+
+                                    inst.Object = (c << 16) | fn;
+                                    // Hacky but it works
+                                    inst.Type = Types.I32;
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+        }
+        
+        Console.WriteLine("Done!");
+        
+        Console.Write("Creating the binary... ");
+
+        using MemoryStream ms = new MemoryStream();
+        using BinaryWriter writer = new BinaryWriter(ms);
+        writer.Write("GNDB".ToCharArray());
+        // Version 0
+        writer.Write(0);
+        writer.Write("strs".ToCharArray());
+        for (int i = 0; i < strings.Count; i++)
+            writer.Write(strings[i]);
+
+        foreach (ClassInfo ci in classes)
+        {
+            writer.Write("clss".ToCharArray());
+            writer.Write(ci.Name);
+            byte classFlags = 0;
+            classFlags |= (byte) (ci.Implements != "none" ? 1 : 0);
+            classFlags |= (byte) ((ci.Instance ? 1 : 0) << 1);
+            classFlags |= (byte) ((ci.ValueType ? 1 : 0) << 2);
+            
+            writer.Write(classFlags);
+            if ((classFlags & 1) == 1)
+                writer.Write(ci.Implements);
+            
+            writer.Write((byte) ci.Functions.Length);
+
+            for (int f = 0; f < ci.Functions.Length; f++)
+            {
+                writer.Write("fn".ToCharArray());
+                ref FnInfo info = ref ci.Functions[f];
+                writer.Write(info.Name);
+                byte fnFlags = 0;
+                fnFlags |= (byte) (info.EntryPoint ? 1 : 0);
+                fnFlags |= (byte) ((info.Constructor ? 1 : 0) << 1);
+                fnFlags |= (byte) ((info.Instance ? 1 : 0) << 2);
+                fnFlags |= (byte) ((info.Private ? 1 : 0) << 3);
+                fnFlags |= (byte) ((info.ReturnType != Types.Void ? 1 : 0) << 4);
+                fnFlags |= (byte) ((info.Arguments?.Length > 0 ? 1 : 0) << 5);
+                writer.Write(fnFlags);
+                if ((fnFlags & 16) == 16)
+                    writer.Write((byte) info.ReturnType);
+                if ((fnFlags & 32) == 32)
+                {
+                    writer.Write((byte) info.Arguments.Length);
+                    for (int i = 0; i < info.Arguments.Length; i++)
+                        writer.Write((byte) info.Arguments[i]);
+                }
+
+                for (int i = 0; i < info.Instructions.Length; i++)
+                    WriteInstruction(info.Instructions[i], writer);
+            }
+        }
+
+        Console.WriteLine("Done!");
+
+        return ms.ToArray();
+    }
+
+    private void WriteInstruction(Instruction instruction, BinaryWriter writer)
+    {
+        writer.Write((byte) instruction.OpCode);
+        switch (instruction.Type)
+        {
+            case Types.Void:
+                break;
+            case Types.I8:
+                writer.Write((sbyte) instruction.Object);
+                break;
+            case Types.I16:
+                writer.Write((short) instruction.Object);
+                break;
+            case Types.I32:
+                writer.Write((int) instruction.Object);
+                break;
+            case Types.I64:
+                writer.Write((long) instruction.Object);
+                break;
+            case Types.U8:
+                writer.Write((byte) instruction.Object);
+                break;
+            case Types.U16:
+                writer.Write((ushort) instruction.Object);
+                break;
+            case Types.U32:
+                writer.Write((uint) instruction.Object);
+                break;
+            case Types.U64:
+                writer.Write((ulong) instruction.Object);
+                break;
+            case Types.F32:
+                writer.Write((float) instruction.Object);
+                break;
+            case Types.F64:
+                writer.Write((double) instruction.Object);
+                break;
+            case Types.String:
+                writer.Write((int) instruction.Object);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
     }
 
     private Exception Error(string message, int line)
