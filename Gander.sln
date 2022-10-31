@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gander.Parser", "Gander.Parser\Gander.Parser.csproj", "{A309A8D8-571B-4515-8C0C-C8B910E4FAEB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestProject", "TestProject\TestProject.csproj", "{75C22B44-20DD-410D-A17A-64B2EE52713C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A309A8D8-571B-4515-8C0C-C8B910E4FAEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A309A8D8-571B-4515-8C0C-C8B910E4FAEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A309A8D8-571B-4515-8C0C-C8B910E4FAEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A309A8D8-571B-4515-8C0C-C8B910E4FAEB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75C22B44-20DD-410D-A17A-64B2EE52713C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75C22B44-20DD-410D-A17A-64B2EE52713C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75C22B44-20DD-410D-A17A-64B2EE52713C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75C22B44-20DD-410D-A17A-64B2EE52713C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
